@@ -33,6 +33,13 @@ def digital_root(n: int) -> int:
 def digit_sum(n: int) -> int:
     return sum(int(ch) for ch in str(abs(n)))
 
+def parse_date(s: str) -> dt.date:
+    s = s.strip().replace("/", "-")
+    try:
+        return dt.date.fromisoformat(s)
+    except Exception:
+        return dt.date.today()
+
 def date_grammar(d: dt.date) -> dict:
     year_root = digital_root(digit_sum(d.year))
     month_root = digital_root(d.month)
@@ -55,20 +62,26 @@ def date_grammar(d: dt.date) -> dict:
         "pair_label": f"{month_root}/{day_root}",
     }
 
-st.title("Breath G • The Living Sacred Heart Sphere — v3")
-st.caption("Zero-CDN version: native browser canvas only, designed to load reliably on Streamlit Cloud.")
+st.title("Breath G • The Living Sacred Heart Sphere — v4")
+st.caption("Interactive native-canvas version: stable typed date, drag rotation, click-to-seed memory bursts.")
+
+today_str = dt.date.today().isoformat()
 
 with st.sidebar:
     st.header("Breathing Calendar")
-    chosen_date = st.date_input("Date", value=dt.date.today())
-    speed = st.slider("Breath speed", 0.15, 2.0, 0.72, 0.05)
-    pov_count = st.slider("POV-eyes", 24, 240, 112, 8)
-    memory_density = st.slider("Memory return", 0.1, 1.0, 0.68, 0.02)
+    date_text = st.text_input("Date YYYY-MM-DD", value=today_str, help="Typed field prevents Streamlit Cloud date-picker month-jumping.")
+    chosen_date = parse_date(date_text)
+
+    speed = st.slider("Breath speed", 0.15, 2.0, 0.90, 0.05)
+    pov_count = st.slider("POV-eyes", 24, 240, 120, 8)
+    memory_density = st.slider("Memory field", 0.1, 1.0, 0.72, 0.02)
+    ray_strength = st.slider("Experience ray strength", 0.0, 1.0, 0.85, 0.05)
     auto_orbit = st.toggle("Slow cosmic orbit", value=True)
     show_rays = st.toggle("Experience rays", value=True)
     show_words = st.toggle("Living words", value=True)
+    cinematic = st.toggle("Cinematic glow", value=True)
     st.divider()
-    st.caption("Prototype 03 • Streamlit + native Canvas")
+    st.caption("Prototype 04 • no CDN • click sphere to add memory")
 
 g = date_grammar(chosen_date)
 
@@ -89,7 +102,7 @@ if not status:
 
 st.markdown(
     f'''<div class="love-card"><b>{' • '.join(status)}</b><br>
-    The selected date modulates the sphere without altering its unmoved center.
+    Date used: <b>{chosen_date.isoformat()}</b>. The selected date modulates the sphere without altering its unmoved center.
     Month/day pair sum: <b>{g['pair_sum']}</b> → root <b>{g['pair_root']}</b>.
     </div>''',
     unsafe_allow_html=True,
@@ -109,6 +122,7 @@ palettes = {
 
 config = {
     "dateLabel": chosen_date.strftime("%B %d, %Y"),
+    "isoDate": chosen_date.isoformat(),
     "yearRoot": g["year_root"],
     "monthRoot": g["month_root"],
     "dayRoot": g["day_root"],
@@ -119,9 +133,11 @@ config = {
     "speed": speed,
     "povCount": pov_count,
     "memoryDensity": memory_density,
+    "rayStrength": ray_strength,
     "autoOrbit": auto_orbit,
     "showRays": show_rays,
     "showWords": show_words,
+    "cinematic": cinematic,
     "palette": palettes[g["date_root"]],
 }
 
@@ -132,95 +148,39 @@ html = r'''
 <meta charset="utf-8">
 <style>
 html, body {
-  margin:0;
-  padding:0;
-  overflow:hidden;
-  background:#02030d;
-  font-family: Georgia, serif;
+  margin:0; padding:0; overflow:hidden; background:#02030d; font-family: Georgia, serif;
 }
 #wrap {
-  position:relative;
-  width:100%;
-  height:790px;
-  border-radius:24px;
-  overflow:hidden;
-  background:
-    radial-gradient(circle at 50% 45%, rgba(38,28,90,.95), rgba(6,7,22,.98) 45%, #000 100%);
+  position:relative; width:100%; height:800px; border-radius:24px; overflow:hidden;
+  background: radial-gradient(circle at 50% 45%, rgba(38,28,90,.95), rgba(6,7,22,.98) 45%, #000 100%);
   box-shadow: inset 0 0 80px rgba(126,104,255,.16), 0 0 35px rgba(0,0,0,.4);
+  user-select:none;
 }
-canvas {
-  width:100%;
-  height:100%;
-  display:block;
-}
+canvas { width:100%; height:100%; display:block; cursor:grab; }
+canvas:active { cursor:grabbing; }
 #hud {
-  position:absolute;
-  left:28px;
-  top:22px;
-  z-index:5;
-  pointer-events:none;
-  color:white;
-  text-shadow:0 2px 18px #000;
+  position:absolute; left:28px; top:22px; z-index:5; pointer-events:none; color:white; text-shadow:0 2px 18px #000;
 }
-.kicker {
-  font-family:Arial,sans-serif;
-  letter-spacing:.24em;
-  font-size:11px;
-  color:#efca7a;
-}
-.title {
-  font-size:30px;
-  margin-top:8px;
-  color:#fff5d8;
-}
-.meta {
-  font-family:Arial,sans-serif;
-  margin-top:7px;
-  color:#d9d8f2;
-  font-size:13px;
-}
+.kicker { font-family:Arial,sans-serif; letter-spacing:.24em; font-size:11px; color:#efca7a; }
+.title { font-size:30px; margin-top:8px; color:#fff5d8; }
+.meta { font-family:Arial,sans-serif; margin-top:7px; color:#d9d8f2; font-size:13px; }
 .badge {
-  display:inline-block;
-  border:1px solid rgba(255,211,115,.55);
-  padding:5px 10px;
-  border-radius:999px;
-  font-family:Arial,sans-serif;
-  font-size:10px;
-  letter-spacing:.15em;
-  color:#ffe9ad;
-  margin-top:10px;
+  display:inline-block; border:1px solid rgba(255,211,115,.55); padding:5px 10px; border-radius:999px;
+  font-family:Arial,sans-serif; font-size:10px; letter-spacing:.15em; color:#ffe9ad; margin-top:10px;
   background:rgba(20,12,48,.55);
 }
 #truth {
-  position:absolute;
-  bottom:24px;
-  left:50%;
-  transform:translateX(-50%);
-  z-index:5;
-  width:min(88%,1000px);
-  text-align:center;
-  pointer-events:none;
-  text-shadow:0 2px 18px #000;
+  position:absolute; bottom:24px; left:50%; transform:translateX(-50%); z-index:5;
+  width:min(88%,1000px); text-align:center; pointer-events:none; text-shadow:0 2px 18px #000;
 }
-#truth .line1 {
-  font-size:22px;
-  color:#fff0c5;
-  letter-spacing:.04em;
-}
-#truth .line2 {
-  font-family:Arial,sans-serif;
-  font-size:12px;
-  color:#c6c5df;
-  margin-top:7px;
-  letter-spacing:.11em;
-}
+#truth .line1 { font-size:22px; color:#fff0c5; letter-spacing:.04em; }
+#truth .line2 { font-family:Arial,sans-serif; font-size:12px; color:#c6c5df; margin-top:7px; letter-spacing:.11em; }
 #hint {
-  position:absolute;
-  right:20px;
-  bottom:18px;
-  z-index:5;
-  font:11px Arial,sans-serif;
-  color:#777b9d;
+  position:absolute; right:20px; bottom:18px; z-index:5; font:11px Arial,sans-serif; color:#a7a5ce; text-align:right;
+}
+#toast {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; pointer-events:none;
+  color:#fff3c7; font:18px Georgia,serif; opacity:0; transition:opacity .35s ease; text-shadow:0 0 20px #000;
 }
 </style>
 </head>
@@ -233,11 +193,12 @@ canvas {
     <div class="meta" id="meta"></div>
     <div id="badges"></div>
   </div>
+  <div id="toast">memory returned</div>
   <div id="truth">
     <div class="line1">Wholeness does not become more whole.</div>
     <div class="line2">THE CENTER REMAINS INFINITE • THE HORIZON OF RELATIONSHIP MOVES</div>
   </div>
-  <div id="hint">drag to turn • native canvas</div>
+  <div id="hint">drag hard to rotate<br>click sphere to seed memory<br>press R to reset</div>
 </div>
 
 <script>
@@ -245,6 +206,7 @@ const CFG = __CONFIG__;
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 const wrap = document.getElementById("wrap");
+const toast = document.getElementById("toast");
 
 document.getElementById("dateLabel").textContent = CFG.dateLabel;
 document.getElementById("meta").textContent =
@@ -252,38 +214,27 @@ document.getElementById("meta").textContent =
 let badges = [];
 if (CFG.gate) badges.push("1-GATE OPEN");
 if (CFG.canonPair) badges.push("CANON PAIR");
+badges.push(CFG.showRays ? "RAYS ON" : "RAYS OFF");
+badges.push(CFG.showWords ? "WORDS ON" : "WORDS OFF");
 document.getElementById("badges").innerHTML = badges.map(b => `<span class="badge">${b}</span>`).join(" ");
 
 let W = 1, H = 1, DPR = 1;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = wrap.clientWidth;
-  H = wrap.clientHeight;
-  canvas.width = Math.floor(W * DPR);
-  canvas.height = Math.floor(H * DPR);
+  W = wrap.clientWidth; H = wrap.clientHeight;
+  canvas.width = Math.floor(W * DPR); canvas.height = Math.floor(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-resize();
-window.addEventListener("resize", resize);
+resize(); window.addEventListener("resize", resize);
 
 function hexToRgb(hex) {
   hex = hex.replace("#","");
-  return {
-    r: parseInt(hex.slice(0,2),16),
-    g: parseInt(hex.slice(2,4),16),
-    b: parseInt(hex.slice(4,6),16)
-  };
+  return { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) };
 }
-function rgba(hex, a) {
-  const c = hexToRgb(hex);
-  return `rgba(${c.r},${c.g},${c.b},${a})`;
-}
+function rgba(hex, a) { const c = hexToRgb(hex); return `rgba(${c.r},${c.g},${c.b},${Math.max(0,Math.min(1,a))})`; }
 const P = CFG.palette;
 
-function rand(seed) {
-  let x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
+function rand(seed) { let x = Math.sin(seed) * 10000; return x - Math.floor(x); }
 
 const golden = Math.PI * (3 - Math.sqrt(5));
 let eyes = [];
@@ -291,13 +242,7 @@ for (let i=0; i<CFG.povCount; i++) {
   const y = 1 - (i / Math.max(1, CFG.povCount-1)) * 2;
   const r = Math.sqrt(Math.max(0, 1-y*y));
   const a = golden * i;
-  eyes.push({
-    x: Math.cos(a) * r,
-    y: y,
-    z: Math.sin(a) * r,
-    phase: rand(i*17.17) * Math.PI * 2,
-    tone: i % 3
-  });
+  eyes.push({ x: Math.cos(a)*r, y:y, z:Math.sin(a)*r, phase:rand(i*17.17)*Math.PI*2, tone:i%3 });
 }
 
 let memories = [];
@@ -307,163 +252,149 @@ for (let i=0; i<memN; i++) {
   const y = 1 - rand(i*6.31) * 2;
   const ar = Math.sqrt(Math.max(0, 1-y*y));
   const a = rand(i*4.77) * Math.PI * 2;
-  memories.push({
-    x: Math.cos(a)*ar*rr,
-    y: y*rr,
-    z: Math.sin(a)*ar*rr,
-    s: 1 + rand(i*3.13)*3,
-    phase: rand(i*11.1) * Math.PI * 2,
-    tone: i % 3
-  });
+  memories.push({ x:Math.cos(a)*ar*rr, y:y*rr, z:Math.sin(a)*ar*rr, s:1+rand(i*3.13)*3, phase:rand(i*11.1)*Math.PI*2, tone:i%3, burst:0 });
 }
 
+let bursts = [];
 let stars = [];
-for (let i=0; i<900; i++) {
-  stars.push({
-    x: rand(i*2.1),
-    y: rand(i*3.7),
-    s: .4 + rand(i*8.3)*1.8,
-    a: .15 + rand(i*5.8)*.75,
-    p: rand(i*4.4)*Math.PI*2
-  });
-}
+for (let i=0; i<900; i++) stars.push({ x:rand(i*2.1), y:rand(i*3.7), s:.4+rand(i*8.3)*1.8, a:.15+rand(i*5.8)*.75, p:rand(i*4.4)*Math.PI*2 });
 
 let rotX = .18, rotY = 0, targetX = .18, targetY = 0;
-let dragging = false, lx = 0, ly = 0;
-canvas.addEventListener("pointerdown", e => { dragging=true; lx=e.clientX; ly=e.clientY; });
-window.addEventListener("pointerup", () => dragging=false);
+let dragging = false, lx = 0, ly = 0, moved = false;
+
+canvas.addEventListener("pointerdown", e => { dragging=true; moved=false; lx=e.clientX; ly=e.clientY; canvas.setPointerCapture?.(e.pointerId); });
+window.addEventListener("pointerup", e => {
+  if (dragging && !moved) addBurst(e.clientX, e.clientY);
+  dragging=false;
+});
 window.addEventListener("pointermove", e => {
   if (!dragging) return;
-  targetY += (e.clientX - lx) * .008;
-  targetX += (e.clientY - ly) * .008;
+  const dx = e.clientX - lx, dy = e.clientY - ly;
+  if (Math.abs(dx)+Math.abs(dy) > 4) moved = true;
+  targetY += dx * .018;
+  targetX += dy * .018;
   lx = e.clientX; ly = e.clientY;
 });
+window.addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "r") { targetX=.18; targetY=0; showToast("reset to center"); }
+});
+
+function addBurst(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left, y = clientY - rect.top;
+  const cx = W/2, cy = H/2 + 22;
+  const baseR = Math.min(W,H)*.285;
+  const dx = x-cx, dy = y-cy;
+  if (Math.sqrt(dx*dx+dy*dy) > baseR*1.35) return;
+  bursts.push({ x, y, birth:performance.now()/1000, tone:Math.floor(Math.random()*3), seed:Math.random()*1000 });
+  for (let i=0;i<18;i++) {
+    const a = Math.random()*Math.PI*2;
+    const rr = Math.random()*.85;
+    memories.push({
+      x: Math.cos(a)*rr, y: Math.sin(a)*rr, z:(Math.random()*2-1)*.7,
+      s:2+Math.random()*4, phase:Math.random()*Math.PI*2, tone:i%3, burst:1
+    });
+  }
+  showToast("memory returned");
+}
+function showToast(txt) {
+  toast.textContent = txt; toast.style.opacity = 1;
+  setTimeout(()=>toast.style.opacity=0, 800);
+}
 
 function rotate(p, ax, ay) {
   let x=p.x, y=p.y, z=p.z;
   let cy=Math.cos(ay), sy=Math.sin(ay);
-  let x1=x*cy + z*sy;
-  let z1=-x*sy + z*cy;
+  let x1=x*cy + z*sy, z1=-x*sy + z*cy;
   let cx=Math.cos(ax), sx=Math.sin(ax);
-  let y1=y*cx - z1*sx;
-  let z2=y*sx + z1*cx;
+  let y1=y*cx - z1*sx, z2=y*sx + z1*cx;
   return {x:x1,y:y1,z:z2};
 }
 function project(p, cx, cy, R) {
   const persp = 1.9 / (2.55 - p.z);
-  return {
-    x: cx + p.x * R * persp,
-    y: cy + p.y * R * persp,
-    s: persp,
-    z: p.z
-  };
+  return { x:cx+p.x*R*persp, y:cy+p.y*R*persp, s:persp, z:p.z };
 }
 function glowCircle(x,y,r,color,a) {
   const g = ctx.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0, rgba(color,a));
-  g.addColorStop(.25, rgba(color,a*.45));
-  g.addColorStop(1, rgba(color,0));
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(x,y,r,0,Math.PI*2);
-  ctx.fill();
+  g.addColorStop(0, rgba(color,a)); g.addColorStop(.25, rgba(color,a*.45)); g.addColorStop(1, rgba(color,0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
 }
 function strokeCircle(x,y,r,color,a,w=1) {
-  ctx.strokeStyle = rgba(color,a);
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  ctx.arc(x,y,r,0,Math.PI*2);
-  ctx.stroke();
+  ctx.strokeStyle = rgba(color,a); ctx.lineWidth = w; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
 }
 function lineGlow(x1,y1,x2,y2,color,a,w=1) {
-  ctx.strokeStyle = rgba(color,a);
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  ctx.moveTo(x1,y1);
-  ctx.lineTo(x2,y2);
-  ctx.stroke();
+  ctx.strokeStyle = rgba(color,a); ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
 }
 
 let start = performance.now();
 function draw(now) {
   requestAnimationFrame(draw);
   const t = (now - start) / 1000;
-  rotX += (targetX - rotX) * .04;
-  rotY += (targetY - rotY) * .04;
-  if (CFG.autoOrbit) targetY += .0018;
+  rotX += (targetX - rotX) * .055; rotY += (targetY - rotY) * .055;
+  if (CFG.autoOrbit) targetY += .0022;
 
-  const cx = W/2;
-  const cy = H/2 + 22;
-  const baseR = Math.min(W, H) * .285;
+  const cx = W/2, cy = H/2 + 22;
+  const baseR = Math.min(W,H) * .285;
   const breath = (Math.sin(t * CFG.speed) + 1) / 2;
-  const R = baseR * (1 + breath*.055 + (CFG.gate ? .025 : 0));
+  const R = baseR * (1 + breath*.065 + (CFG.gate ? .03 : 0));
 
   ctx.clearRect(0,0,W,H);
 
   const bg = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*.7);
-  bg.addColorStop(0, "rgba(44,34,112,.34)");
-  bg.addColorStop(.45, "rgba(10,9,35,.55)");
+  bg.addColorStop(0, "rgba(44,34,112,.38)");
+  bg.addColorStop(.45, "rgba(10,9,35,.60)");
   bg.addColorStop(1, "rgba(0,0,0,1)");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
 
   for (const s of stars) {
     const a = s.a * (.55 + .45*Math.sin(t*.7+s.p));
-    ctx.fillStyle = `rgba(210,220,255,${a})`;
-    ctx.beginPath();
-    ctx.arc(s.x*W, s.y*H, s.s, 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle = `rgba(210,220,255,${a})`; ctx.beginPath(); ctx.arc(s.x*W, s.y*H, s.s, 0, Math.PI*2); ctx.fill();
   }
 
-  glowCircle(cx, cy, R*1.55, P[2], .15 + breath*.10);
-  glowCircle(cx, cy, R*1.10, P[1], .12 + breath*.12);
+  if (CFG.cinematic) {
+    glowCircle(cx, cy, R*1.65, P[2], .20 + breath*.12);
+    glowCircle(cx, cy, R*1.14, P[1], .16 + breath*.14);
+  }
 
   ctx.save();
-  ctx.translate(cx,cy);
-  ctx.rotate(rotY*.3);
+  ctx.translate(cx,cy); ctx.rotate(rotY*.3);
   for (let i=0; i<15; i++) {
-    ctx.strokeStyle = rgba(i%2?P[0]:P[1], .04 + i*.002);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    ctx.strokeStyle = rgba(i%2?P[0]:P[1], .035 + i*.002);
+    ctx.lineWidth = 1; ctx.beginPath();
     ctx.ellipse(0,0,R*(1.04+i*.012),R*(.35+i*.014),rotX+i*.37,0,Math.PI*2);
     ctx.stroke();
   }
   ctx.restore();
 
-  strokeCircle(cx,cy,R,P[0],.75,1.4);
-  strokeCircle(cx,cy,R*1.01,P[1],.35,1);
-  strokeCircle(cx,cy,R*.985,P[2],.25,1);
+  strokeCircle(cx,cy,R,P[0],.82,1.4);
+  strokeCircle(cx,cy,R*1.01,P[1],.40,1);
+  strokeCircle(cx,cy,R*.985,P[2],.30,1);
 
   const shellGrad = ctx.createRadialGradient(cx-R*.25,cy-R*.35,R*.05,cx,cy,R*1.1);
-  shellGrad.addColorStop(0, rgba(P[0],.18));
-  shellGrad.addColorStop(.5, rgba(P[1],.055));
-  shellGrad.addColorStop(1, rgba(P[2],.12));
-  ctx.fillStyle = shellGrad;
-  ctx.beginPath();
-  ctx.arc(cx,cy,R,0,Math.PI*2);
-  ctx.fill();
+  shellGrad.addColorStop(0, rgba(P[0],.20));
+  shellGrad.addColorStop(.5, rgba(P[1],.065));
+  shellGrad.addColorStop(1, rgba(P[2],.14));
+  ctx.fillStyle = shellGrad; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
 
-  glowCircle(cx,cy,R*.36,P[0],.50 + breath*.25);
+  glowCircle(cx,cy,R*.36,P[0],.55 + breath*.30);
   strokeCircle(cx,cy,R*.18,P[0],.55,1);
-  strokeCircle(cx,cy,R*.27,P[1],.28,1);
+  strokeCircle(cx,cy,R*.27,P[1],.30,1);
   for (let k=0;k<12;k++) {
     const a = t*.04 + k*Math.PI/6;
-    lineGlow(cx,cy,cx+Math.cos(a)*R*.32,cy+Math.sin(a)*R*.32,P[k%2?1:0],.20,1);
+    lineGlow(cx,cy,cx+Math.cos(a)*R*.32,cy+Math.sin(a)*R*.32,P[k%2?1:0],.22,1);
   }
 
   const projectedMem = memories.map(m => {
-    const pr = rotate(m, rotX*.85 + t*.015, rotY*.85 + t*.02);
-    return {...project(pr,cx,cy,R*.77), tone:m.tone, phase:m.phase, size:m.s};
+    const pr = rotate(m, rotX*.85 + t*.018, rotY*.85 + t*.025);
+    return {...project(pr,cx,cy,R*.77), tone:m.tone, phase:m.phase, size:m.s, burst:m.burst};
   }).sort((a,b)=>a.z-b.z);
 
   for (const m of projectedMem) {
     const color = P[m.tone];
-    const a = (.16 + .28*(m.z+1)/2) * (.6 + .4*Math.sin(t*1.2+m.phase));
-    glowCircle(m.x,m.y,m.size*5*m.s,color,a*.55);
-    ctx.fillStyle = rgba(color, a+.12);
-    ctx.beginPath();
-    ctx.arc(m.x,m.y,m.size*m.s,0,Math.PI*2);
-    ctx.fill();
+    const a = (.16 + .30*(m.z+1)/2) * (.6 + .4*Math.sin(t*1.2+m.phase));
+    glowCircle(m.x,m.y,m.size*5*m.s,color,a*.60);
+    ctx.fillStyle = rgba(color, a+.14);
+    ctx.beginPath(); ctx.arc(m.x,m.y,m.size*m.s,0,Math.PI*2); ctx.fill();
   }
 
   const projectedEyes = eyes.map((e, idx) => {
@@ -471,59 +402,53 @@ function draw(now) {
     return {...project(pr,cx,cy,R), source:e, idx};
   }).sort((a,b)=>a.z-b.z);
 
-  if (CFG.showRays) {
+  if (CFG.showRays && CFG.rayStrength > 0) {
     for (const e of projectedEyes) {
       if (e.idx % 3 !== 0 || e.z < -0.25) continue;
       const color = P[e.source.tone];
-      const a = .10 + .22*(e.z+1)/2;
+      const a = (.10 + .26*(e.z+1)/2) * CFG.rayStrength;
       const dx = (e.x - cx), dy = (e.y - cy);
       const len = Math.sqrt(dx*dx+dy*dy) || 1;
-      const ox = e.x + dx/len * R*.32;
-      const oy = e.y + dy/len * R*.32;
-      lineGlow(ox,oy,e.x,e.y,color,a,1.2);
-      lineGlow(e.x,e.y,cx,cy,color,a*.32,.8);
+      const ox = e.x + dx/len * R*.34, oy = e.y + dy/len * R*.34;
+      lineGlow(ox,oy,e.x,e.y,color,a,1.3);
+      lineGlow(e.x,e.y,cx,cy,color,a*.38,.85);
     }
   }
 
   for (const e of projectedEyes) {
-    const front = (e.z+1)/2;
-    const color = P[e.source.tone];
+    const front = (e.z+1)/2, color = P[e.source.tone];
     const blink = .48 + .52*Math.pow((Math.sin(t*.9+e.source.phase)+1)/2, 2);
-    const rw = Math.max(2.5, 7.5*e.s*(.7+front*.7));
+    const rw = Math.max(2.5, 7.8*e.s*(.7+front*.7));
     const rh = rw * (.43 + .25*blink);
     const alpha = .25 + front*.70;
-
-    ctx.save();
-    ctx.translate(e.x,e.y);
-    ctx.rotate(Math.atan2(e.source.y, e.source.x) + rotY*.4);
-    glowCircle(0,0,rw*2.6,color,alpha*.23);
-    ctx.strokeStyle = rgba(color,alpha);
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(0,0,rw,rh,0,0,Math.PI*2);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(4,3,15,.78)";
-    ctx.beginPath();
-    ctx.arc(0,0,Math.max(1.4,rw*.22),0,Math.PI*2);
-    ctx.fill();
+    ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(Math.atan2(e.source.y, e.source.x) + rotY*.4);
+    glowCircle(0,0,rw*2.6,color,alpha*.25);
+    ctx.strokeStyle = rgba(color,alpha); ctx.lineWidth = 1.25; ctx.beginPath(); ctx.ellipse(0,0,rw,rh,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle = "rgba(4,3,15,.78)"; ctx.beginPath(); ctx.arc(0,0,Math.max(1.4,rw*.22),0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
-  glowCircle(cx,cy,34 + breath*20,P[0],.85);
-  ctx.fillStyle = rgba(P[0],.95);
-  ctx.beginPath();
-  ctx.arc(cx,cy,5.5 + breath*2,0,Math.PI*2);
-  ctx.fill();
+  // click bursts
+  bursts = bursts.filter(b => t - b.birth < 2.2);
+  for (const b of bursts) {
+    const age = t - b.birth;
+    const rr = 22 + age*95;
+    const a = Math.max(0, 1-age/2.2);
+    strokeCircle(b.x,b.y,rr,P[b.tone],a*.75,2);
+    glowCircle(b.x,b.y,rr*.55,P[b.tone],a*.20);
+    lineGlow(b.x,b.y,cx,cy,P[b.tone],a*.45,1.2);
+  }
+
+  glowCircle(cx,cy,36 + breath*22,P[0],.92);
+  ctx.fillStyle = rgba(P[0],.98);
+  ctx.beginPath(); ctx.arc(cx,cy,5.8 + breath*2.2,0,Math.PI*2); ctx.fill();
 
   if (CFG.showWords) {
-    ctx.font = "15px Georgia";
-    ctx.fillStyle = "rgba(255,240,197,.86)";
-    ctx.textAlign = "center";
+    ctx.font = "16px Georgia"; ctx.fillStyle = "rgba(255,240,197,.90)"; ctx.textAlign = "center";
     ctx.fillText("infinite center", cx, cy - R*.47);
     ctx.fillText("living horizon", cx, cy + R*.49);
-    ctx.font = "12px Arial";
-    ctx.fillStyle = "rgba(218,216,244,.68)";
-    ctx.fillText("each eye returns one irreplaceable color of self-knowing", cx, cy + R*.57);
+    ctx.font = "12px Arial"; ctx.fillStyle = "rgba(218,216,244,.72)";
+    ctx.fillText("click anywhere inside the sphere: one experience returns as color", cx, cy + R*.57);
   }
 }
 requestAnimationFrame(draw);
@@ -532,13 +457,15 @@ requestAnimationFrame(draw);
 </html>
 '''.replace("__CONFIG__", json.dumps(config))
 
-components.html(html, height=810, scrolling=False)
+components.html(html, height=820, scrolling=False)
 
-with st.expander("Why this version exists"):
+with st.expander("How to interact"):
     st.markdown('''
-The earlier prototype used Three.js from an external CDN. Your deployed app reported that Three.js did not load, which means the external script was blocked or unavailable in that environment.
-
-This v3 version uses only native browser canvas. It does not depend on any outside JavaScript library, so it should render reliably inside Streamlit Cloud.
+- **Drag hard left/right/up/down** inside the sphere to rotate the field.
+- **Click or tap inside the sphere** to seed a new memory-return burst.
+- **Press R** while the animation is active to reset the orientation.
+- Sidebar toggles rerun Streamlit and rebuild the field with those settings.
+- The typed date field stays exactly what you enter.
     ''')
 
 with st.expander("What this prototype is expressing"):
@@ -547,7 +474,8 @@ with st.expander("What this prototype is expressing"):
 - **The circumference breathes.** Expansion represents an enlarging horizon of possible relationship.
 - **POV-eyes awaken asynchronously.** No perspective is duplicated or expendable.
 - **Experience rays return inward.** Life goes outward; memory and meaning return to the common interior.
-- **The interior becomes richer without becoming closed.**
+- **Click-bursts represent lived experience returning as color.**
 - **The Breathing Calendar modulates the display.** Date roots influence palette, rhythm, activation, and gate emphasis.
     ''')
+
 
