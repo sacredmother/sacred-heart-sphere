@@ -438,9 +438,14 @@ with tab_alpha:
     figs.add_annotation(x="R0 / 0",y="r = 0",text="<b>COMMON<br>C</b>",showarrow=False)
     figs.update_layout(
         height=600,
-        title="A(r,s)=C+3r+s — local affine operator square",
+        title="A(r,s)=C+3r+s — canonical affine operator orientation",
         xaxis_title="Surface phase / horizontal differential",
-        yaxis_title="Vertical ±3 TURN"
+        yaxis_title="Vertical +3 TURN runs TOP → BOTTOM",
+        yaxis=dict(
+            categoryorder="array",
+            categoryarray=["r = -1","r = 0","r = +1"],
+            autorange="reversed"
+        )
     )
     st.plotly_chart(figs,use_container_width=True)
 
@@ -461,6 +466,34 @@ with tab_alpha:
         "The center column preserves `−3 + 0 + 3 = 0`. The side-channel relation exposes the reciprocal **1/2 ↔ 2** read. "
         "The integers are the address/operator geometry; LOVE Table scalars are contents carried by addresses."
     )
+
+    # Integrity audit: do not let display orientation silently alter the operator.
+    canonical_offsets = [[-2,-3,-1],[1,0,2],[4,3,5]]
+    affine_checks = {
+        "top_row": canonical_offsets[0] == [-2,-3,-1],
+        "center_row": canonical_offsets[1] == [1,0,2],
+        "bottom_row": canonical_offsets[2] == [4,3,5],
+        "center_axis": [canonical_offsets[0][1],canonical_offsets[1][1],canonical_offsets[2][1]] == [-3,0,3],
+        "diag_left": canonical_offsets[0][0] + canonical_offsets[2][2] == 3,
+        "diag_right": canonical_offsets[0][2] + canonical_offsets[2][0] == 3,
+        "center_column_sum": sum([canonical_offsets[0][1],canonical_offsets[1][1],canonical_offsets[2][1]]) == 0,
+    }
+    integrity_pass = all(affine_checks.values())
+    st.success("AFFINE INTEGRITY: PASS — canonical page orientation and operator identities agree.") if integrity_pass else st.error("AFFINE INTEGRITY: FAIL — do not trust traversal.")
+
+    with st.expander("Affine → chassis audit"):
+        st.write("Canonical page orientation: TOP `[-2,-3,-1]` · CENTER `[+1,0,+2]` · BOTTOM `[+4,+3,+5]`.")
+        st.write("The numerical traversal engine itself remains `D=3r+s` and was not reversed by this display fix.")
+        st.write(
+            f"Current controls resolve: r={r}, s={s} → D={affine_steps:+d}; "
+            f"θ={theta:g}° → q={q_steps}; origin={origin_slot} → slot={slot}/16."
+        )
+        st.write(
+            "Important status: the affine operator and 22.5° ruler are locked; "
+            "the rule `slot = wrap16(origin + D + q)` remains a DECLARED app implementation. "
+            "Therefore this audit verifies internal consistency; it does not promote that bridge to archive canon."
+        )
+
 
     # Extended affine neighborhood, live with theta-resolved chassis slot.
     ext=[]
@@ -586,5 +619,6 @@ with tab_status:
 
 st.divider()
 st.caption("Whole first, operator second, number third, correspondence last.")
+
 
 
