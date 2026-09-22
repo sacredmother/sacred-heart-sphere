@@ -209,235 +209,339 @@ active = row_for(active_face, slot)
 other_face = "BELOW" if active_face == "ABOVE" else "ABOVE"
 reciprocal = row_for(other_face, mirror_slot(slot))
 
-# -----------------------------
-# TOP STATUS
-# -----------------------------
-st.subheader("Living address")
-m1,m2,m3,m4,m5 = st.columns(5)
-m1.metric("A(r,s)", f"{A:.0f}")
-m2.metric("Affine D = 3r+s", f"{affine_steps:+d}")
-m3.metric("q steps", f"{q_steps}")
-m4.metric("Local slot", f"{slot}/16")
-m5.metric("Active face", active_face)
-
-st.markdown(
-    f"### **{active['address']}**  — slot {slot}, θ-address {active['theta_deg']:g}°"
-)
-st.write(
-    f"Reciprocal face at the same local address: **{reciprocal['address']}**. "
-    f"Archived pair attached to this active address: **{active['mirror_address']}**."
-)
 
 # -----------------------------
-# WALKING WHEEL
+# TABBED LIVING INTERFACE
 # -----------------------------
-wheel = DF32.copy()
-wheel["radius"] = np.log2(wheel["k"])
-wheel["active"] = wheel["index"] == active["index"]
-wheel["reciprocal_active"] = wheel["index"] == reciprocal["index"]
-
-# row_for() returns a row from DF32 before the display-only radius column exists.
-# Compute the active/reciprocal display radius directly from k.
-active_radius = math.log2(float(active["k"]))
-reciprocal_radius = math.log2(float(reciprocal["k"]))
-
-fig = go.Figure()
-
-for face in ["ABOVE","BELOW"]:
-    d = wheel[wheel["face"] == face]
-    fig.add_trace(go.Scatterpolar(
-        r=d["radius"],
-        theta=d["theta_deg"],
-        mode="markers+text",
-        text=d["slot"],
-        textposition="top center",
-        customdata=np.stack([d["address"],d["Hz"],d["cm"],d["k"],d["EM_GHz"]], axis=-1),
-        hovertemplate=(
-            "%{customdata[0]}<br>"
-            "slot=%{text}<br>"
-            "θ=%{theta}°<br>"
-            "Hz=%{customdata[1]:.9f}<br>"
-            "cm=%{customdata[2]:.6f}<br>"
-            "k=%{customdata[3]:.9f}<br>"
-            "EM=%{customdata[4]:.9f} GHz<extra>"+face+"</extra>"
-        ),
-        name=face,
-        marker=dict(size=10 if face==active_face else 7, opacity=0.78),
-    ))
-
-# Active marker
-fig.add_trace(go.Scatterpolar(
-    r=[active_radius],
-    theta=[active["theta_deg"]],
-    mode="markers+text",
-    text=[f"ACTIVE: {active['address']}"],
-    textposition="top center",
-    marker=dict(size=22, symbol="diamond"),
-    name="Active Alpha address"
-))
-fig.add_trace(go.Scatterpolar(
-    r=[reciprocal_radius],
-    theta=[reciprocal["theta_deg"]],
-    mode="markers+text",
-    text=[f"RECIP: {reciprocal['address']}"],
-    textposition="bottom center",
-    marker=dict(size=18, symbol="circle-open"),
-    name="Reciprocal face"
-))
-
-# Traversal path on active face
-if show_path:
-    path_slots = []
-    start = origin_slot
-    total_steps = affine_steps + q_steps
-    direction = 1 if total_steps >= 0 else -1
-    for k in range(abs(total_steps)+1):
-        path_slots.append(wrap16(start + direction*k))
-    pdpath = pd.DataFrame([row_for(active_face, sl) for sl in path_slots])
-    fig.add_trace(go.Scatterpolar(
-        r=np.log2(pdpath["k"]),
-        theta=pdpath["theta_deg"],
-        mode="lines+markers",
-        name="Alpha traversal path",
-        line=dict(width=3),
-        marker=dict(size=6),
-    ))
-
-fig.update_layout(
-    title="Alpha-driven 32-chassis walk",
-    polar=dict(
-        angularaxis=dict(direction="clockwise", rotation=90, dtick=22.5),
-        radialaxis=dict(title="display radius = log₂(k)")
-    ),
-    height=650,
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# ACTIVE SCALAR PACKET
-# -----------------------------
-st.subheader("Active scalar tuple")
-a,b,c,d = st.columns(4)
-a.metric("Hz", f"{active['Hz']:.9f}")
-b.metric("cm", f"{active['cm']:.6f}")
-c.metric("k", f"{active['k']:.9f}")
-d.metric("EM GHz", f"{active['EM_GHz']:.9f}")
-
-e,f,g,h = st.columns(4)
-e.metric("Mirror Hz", f"{active['mirror_Hz']:.9f}")
-f.metric("Mirror cm", f"{active['mirror_cm']:.6f}")
-g.metric("Mirror k", f"{active['mirror_k']:.9f}")
-h.metric("Mirror EM GHz", f"{active['mirror_EM_GHz']:.9f}")
-
-st.markdown(
-    f"**Exact local mirror law:** k′/k = {active['mirror_k']/active['k']:.6g}; "
-    f"(Hz′/Hz)(cm′/cm) = {(active['mirror_Hz']/active['Hz'])*(active['mirror_cm']/active['cm']):.6g}."
-)
-
-# -----------------------------
-# ALPHA AFFINE CHART
-# -----------------------------
-st.subheader("Affine operator state")
-aff_rows=[]
-for rr in range(r-2,r+3):
-    for ss in [0,1,2]:
-        val=alpha_affine(C,rr,ss)
-        sl,ds,qs=alpha_to_local_slot(C,rr,ss,theta,origin_slot)
-        rw=row_for(active_face,sl)
-        aff_rows.append({
-            "r":rr,"s":ss,"A":val,"D":val-C,"slot":sl,
-            "address":rw["address"],"theta_address":rw["theta_deg"],
-            "Hz":rw["Hz"],"cm":rw["cm"],"k":rw["k"],"EM_GHz":rw["EM_GHz"]
-        })
-aff=pd.DataFrame(aff_rows)
-
-fig_aff=px.scatter(
-    aff,x="s",y="r",text="slot",
-    hover_name="address",
-    hover_data=["A","D","theta_address","Hz","cm","k","EM_GHz"],
-    title="Local Alpha affine neighborhood — each cell now resolves to a chassis address"
-)
-fig_aff.update_traces(marker_size=18,textposition="top center")
-st.plotly_chart(fig_aff,use_container_width=True)
-
-st.dataframe(aff,use_container_width=True,hide_index=True)
-
-# -----------------------------
-# 18-HALF-OCTAVE BRIDGE
-# -----------------------------
-st.subheader("Macro braid read")
-sector_name, note_name = packet_from_slot(slot)
-st.markdown(
-    f"The active local slot lies in the app's four-sector macro display: **{sector_name} = {note_name}**."
-)
-st.caption(
-    "Status: STRONG SYNTHESIS / visualization bridge. The archive locks the macro braid "
-    "O1↔O8=Re, O2↔O7=Mi, O3↔O6=Fa, O4↔O5=Sol/Heart, but does not yet lock a unique "
-    "one-to-one formula from every 16-slot local address to one macro pair. This app keeps that distinction visible."
-)
-
-# -----------------------------
-# REFERENCE FUNCTIONS
-# -----------------------------
-st.subheader("Reference functions and O9 closure")
-refs = pd.DataFrame([
-    {
-        "name":"Radon B",
-        "membership":"outside O1",
-        "role":"pre-O1 reflective / black-mirror cathodic reference",
-        **scalar_tuple("Radon B")
-    },
-    {
-        "name":"Tomion A",
-        "membership":"outside periodic/RH spiral",
-        "role":"still / invariant COMMON reference",
-        **scalar_tuple("Tomion A")
-    },
-    {
-        "name":"Radon A",
-        "membership":"INSIDE O9 as C2",
-        "role":"return cathodic / Mass-Hara closure",
-        **scalar_tuple("Radon A")
-    },
-    {
-        "name":"Plutonium",
-        "membership":"INSIDE O9 as final anode",
-        "role":"fullness-of-expression / terminal differentiated anode",
-        **scalar_tuple("Plutonium")
-    },
+tab_chassis, tab_alpha, tab_girdle, tab_status = st.tabs([
+    "LOVE Table Chassis",
+    "Alpha Affine Square",
+    "32 Girdle Detail",
+    "Status + Scalar Tables",
 ])
-st.dataframe(refs,use_container_width=True,hide_index=True)
 
-# -----------------------------
-# STATUS / FORMALISM
-# -----------------------------
-with st.expander("Operator formalism and status"):
+with tab_chassis:
+    st.header("Living LOVE Table chassis")
+    st.caption(
+        "This is an unwrapped functional chassis, not a newly invented radial ruler. "
+        "Horizontal position is the established O1→O9 packet order; vertical lanes are role lanes. "
+        "The O4/O5 girdle seam is shown explicitly, while Alpha's current local address is carried beside it."
+    )
+
+    # Current live Alpha state
+    m1,m2,m3,m4,m5 = st.columns(5)
+    m1.metric("A(r,s)", f"{A:.0f}")
+    m2.metric("D = 3r+s", f"{affine_steps:+d}")
+    m3.metric("q steps", f"{q_steps}")
+    m4.metric("Local slot", f"{slot}/16")
+    m5.metric("LOOK face", active_face)
+
+    # Build the exact principal 2A2C packet lanes.
+    chassis_rows = []
+    for i,(octv,a1,a2,c1,c2,note,ratio) in enumerate(PACKETS, start=1):
+        for lane,role,name in [
+            (3,"A2",a2),(2,"A1",a1),(-2,"C1",c1),(-3,"C2",c2)
+        ]:
+            tup = scalar_tuple(name)
+            chassis_rows.append({
+                "octave":octv,"x":i,"lane":lane,"role":role,"name":name,
+                "Hz":tup["Hz"],"cm":tup["cm"],"k":tup["k"],"EM_GHz":tup["EM_GHz"],
+                "braid":note
+            })
+    cdf = pd.DataFrame(chassis_rows)
+
+    figc = go.Figure()
+
+    # Four principal lanes.
+    for role in ["A2","A1","C1","C2"]:
+        d = cdf[cdf["role"]==role]
+        figc.add_trace(go.Scatter(
+            x=d["x"], y=d["lane"],
+            mode="lines+markers+text",
+            text=d["name"],
+            textposition="top center" if role in ["A2","A1"] else "bottom center",
+            customdata=np.stack([d["octave"],d["name"],d["Hz"],d["cm"],d["k"],d["EM_GHz"]],axis=-1),
+            hovertemplate=(
+                "%{customdata[0]} — "+role+"<br>"
+                "%{customdata[1]}<br>"
+                "Hz=%{customdata[2]:.9f}<br>"
+                "cm=%{customdata[3]:.6f}<br>"
+                "k=%{customdata[4]:.9f}<br>"
+                "EM=%{customdata[5]:.9f} GHz<extra></extra>"
+            ),
+            name=role,
+            marker=dict(size=11),
+        ))
+
+    # Invariant Center/COMMON lane.
+    figc.add_hline(y=0, line_width=3)
+    figc.add_annotation(x=5, y=0, text="Invariant Center / COMMON — does not move", showarrow=False, yshift=10)
+
+    # O4/O5 girdle seam: explicit chassis hinge, not radial inference.
+    figc.add_vrect(x0=3.5, x1=5.5, opacity=0.10, line_width=1)
+    figc.add_annotation(
+        x=4.5, y=4.25,
+        text="O4 ↔ O5 HEART / 32-address GIRDLE SEAM<br>16 ABOVE AND 16 BELOW",
+        showarrow=False
+    )
+
+    # Great Radial / O9 completion.
+    figc.add_vrect(x0=8.65, x1=9.35, opacity=0.08, line_width=1)
+    figc.add_annotation(
+        x=9, y=4.25,
+        text="O9 completion<br>Plutonium A2 / Radon A C2",
+        showarrow=False
+    )
+
+    # Outside references: placed in a dedicated reference lane, not as periodic x-addresses.
+    figc.add_annotation(
+        x=0.55, y=-4.35,
+        text="Radon B — outside O1<br>pre-O1 reflective reference",
+        showarrow=True, ax=-15, ay=35
+    )
+    figc.add_annotation(
+        x=9.45, y=4.85,
+        text="Tomion A — outside periodic/RH spiral<br>still COMMON reference",
+        showarrow=True, ax=15, ay=-30
+    )
+
+    # Girdle address badge: the live Alpha local address is shown at the seam.
+    figc.add_annotation(
+        x=4.5, y=0,
+        text=(
+            f"<b>LIVE ALPHA</b><br>{active['address']}<br>"
+            f"{active_face} · slot {slot}/16 · θ-address {active['theta_deg']:g}°"
+        ),
+        showarrow=True, arrowhead=2, ax=0, ay=-80
+    )
+
+    # Principal reciprocal packet links.
+    for i in range(1,10):
+        a1 = cdf[(cdf.x==i)&(cdf.role=="A1")].iloc[0]
+        a2 = cdf[(cdf.x==i)&(cdf.role=="A2")].iloc[0]
+        c1 = cdf[(cdf.x==i)&(cdf.role=="C1")].iloc[0]
+        c2 = cdf[(cdf.x==i)&(cdf.role=="C2")].iloc[0]
+        figc.add_shape(type="line",x0=i,y0=2,x1=i,y1=3,line=dict(width=1))
+        figc.add_shape(type="line",x0=i,y0=-2,x1=i,y1=-3,line=dict(width=1))
+
+    figc.update_layout(
+        height=760,
+        title="Full principal 2A2C chassis with O4/O5 girdle seam",
+        xaxis=dict(
+            title="Established half-octave packet order",
+            tickmode="array", tickvals=list(range(1,10)),
+            ticktext=[f"O{i}" for i in range(1,10)],
+            range=[0.25,9.75]
+        ),
+        yaxis=dict(
+            title="Functional lane — schematic, not a scalar radius",
+            tickmode="array",
+            tickvals=[-3,-2,0,2,3],
+            ticktext=["C2","C1","CENTER","A1","A2"],
+            range=[-5.2,5.3]
+        ),
+        hovermode="closest",
+        legend=dict(orientation="h")
+    )
+    st.plotly_chart(figc, use_container_width=True)
+
+    st.markdown(
+        f"**Current Alpha LOOK:** `{active['address']}` on the **{active_face}** face, "
+        f"local slot **{slot}/16**. Its reciprocal-face address at the same local slot is "
+        f"**{reciprocal['address']}**. The girdle is now shown *inside* the larger O1–O9 / 2A2C chassis rather than as the whole chassis."
+    )
+
+    st.info(
+        "Rigor gate: the principal O1–O9 2A2C skeleton, O4/O5 girdle seam, 16+16 dual-face chassis, "
+        "and reference placements are established. The missing inner three reciprocal pairs toward the literal 121-element completion "
+        "remain OPEN and are not interpolated into this picture."
+    )
+
+with tab_alpha:
+    st.header("Alpha Affine Square")
+    st.caption(
+        "The affine operator as its own live 3×3 square. This is magic-square-like affine geometry, "
+        "not a conventional finite magic square requiring equal row/column/diagonal sums."
+    )
+
+    # Exact directional operator matrix around the invariant Center.
+    offsets = np.array([[-2,-3,-1],[1,0,2],[4,3,5]], dtype=int)
+    vals = offsets + C
+
+    # Live point: highlight the residue class of D within this local 3×3 operator chart when present.
+    Dint = int(round(A-C))
+    labels = []
+    for rr in range(3):
+        row=[]
+        for cc in range(3):
+            off=int(offsets[rr,cc])
+            v=vals[rr,cc]
+            tag = "CENTER" if off==0 else f"C{off:+d}"
+            if off==Dint:
+                tag += "  ← LIVE D"
+            row.append(f"{tag}<br>{v:g}")
+        labels.append(row)
+
+    figs = go.Figure(data=go.Heatmap(
+        z=offsets,
+        x=["R1 / +1","R0 / 0","R2 / +2"],
+        y=["r = -1","r = 0","r = +1"],
+        text=labels,
+        texttemplate="%{text}",
+        hovertemplate="offset=%{z:+d}<extra></extra>",
+        showscale=False,
+    ))
+
+    # Center, crossed diagonal, and side-channel annotations.
+    figs.add_annotation(x="R0 / 0",y="r = 0",text="<b>COMMON<br>C</b>",showarrow=False)
+    figs.update_layout(
+        height=600,
+        title="A(r,s)=C+3r+s — local affine operator square",
+        xaxis_title="Surface phase / horizontal differential",
+        yaxis_title="Vertical ±3 TURN"
+    )
+    st.plotly_chart(figs,use_container_width=True)
+
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Center C", f"{C:g}")
+    c2.metric("A(r,s)", f"{A:g}")
+    c3.metric("D=A−C", f"{A-C:+g}")
+    c4.metric("θ", f"{theta:g}°")
+
+    st.markdown(
+        "**Exact square:**  \n"
+        "`[-2  -3  -1]`  \n"
+        "`[+1   0  +2]`  \n"
+        "`[+4  +3  +5]`"
+    )
+    st.markdown(
+        "Its crossed diagonals preserve **3 AND 3**: `−2 + 5 = 3` and `−1 + 4 = 3`. "
+        "The center column preserves `−3 + 0 + 3 = 0`. The side-channel relation exposes the reciprocal **1/2 ↔ 2** read. "
+        "The integers are the address/operator geometry; LOVE Table scalars are contents carried by addresses."
+    )
+
+    # Extended affine neighborhood, live with theta-resolved chassis slot.
+    ext=[]
+    for rr in range(r-3,r+4):
+        for ss in [1,0,2]:
+            aa=alpha_affine(C,rr,ss)
+            sl,ds,qs=alpha_to_local_slot(C,rr,ss,theta,origin_slot)
+            rw=row_for(active_face,sl)
+            ext.append({
+                "r":rr,"s":ss,"A":aa,"D":aa-C,"slot":sl,
+                "chassis_address":rw["address"],"theta_address":rw["theta_deg"]
+            })
+    extdf=pd.DataFrame(ext)
+    st.subheader("Extended affine lattice → live chassis resolution")
+    st.dataframe(extdf,use_container_width=True,hide_index=True)
+
+with tab_girdle:
+    st.header("32-address dual-face girdle")
+    st.caption("16 compression/Tone-facing addresses AND 16 rarefaction/Mass-harmonic addresses. Radius = log₂(k) is display-only.")
+
+    wheel = DF32.copy()
+    wheel["radius"] = np.log2(wheel["k"])
+    active_radius = math.log2(float(active["k"]))
+    reciprocal_radius = math.log2(float(reciprocal["k"]))
+
+    fig = go.Figure()
+    for face in ["ABOVE","BELOW"]:
+        d = wheel[wheel["face"] == face]
+        fig.add_trace(go.Scatterpolar(
+            r=d["radius"], theta=d["theta_deg"], mode="markers+text",
+            text=d["slot"], textposition="top center",
+            customdata=np.stack([d["address"],d["Hz"],d["cm"],d["k"],d["EM_GHz"]], axis=-1),
+            hovertemplate=(
+                "%{customdata[0]}<br>slot=%{text}<br>θ=%{theta}°<br>"
+                "Hz=%{customdata[1]:.9f}<br>cm=%{customdata[2]:.6f}<br>"
+                "k=%{customdata[3]:.9f}<br>EM=%{customdata[4]:.9f} GHz<extra>"+face+"</extra>"
+            ),
+            name=face, marker=dict(size=10 if face==active_face else 7, opacity=0.78),
+        ))
+
+    fig.add_trace(go.Scatterpolar(
+        r=[active_radius],theta=[active["theta_deg"]],mode="markers+text",
+        text=[f"ACTIVE: {active['address']}"],textposition="top center",
+        marker=dict(size=22,symbol="diamond"),name="Active Alpha address"
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=[reciprocal_radius],theta=[reciprocal["theta_deg"]],mode="markers+text",
+        text=[f"RECIP: {reciprocal['address']}"],textposition="bottom center",
+        marker=dict(size=18,symbol="circle-open"),name="Reciprocal face"
+    ))
+
+    if show_path:
+        path_slots=[]
+        total_steps=affine_steps+q_steps
+        direction=1 if total_steps>=0 else -1
+        for kk in range(abs(total_steps)+1):
+            path_slots.append(wrap16(origin_slot+direction*kk))
+        pdpath=pd.DataFrame([row_for(active_face,sl) for sl in path_slots])
+        fig.add_trace(go.Scatterpolar(
+            r=np.log2(pdpath["k"]),theta=pdpath["theta_deg"],mode="lines+markers",
+            name="Alpha traversal path",line=dict(width=3),marker=dict(size=6)
+        ))
+
+    fig.update_layout(
+        height=700,title="Alpha-driven 32-address girdle",
+        polar=dict(
+            angularaxis=dict(direction="clockwise",rotation=90,dtick=22.5),
+            radialaxis=dict(title="display radius = log₂(k)")
+        )
+    )
+    st.plotly_chart(fig,use_container_width=True)
+
+    st.subheader("Active scalar tuple")
+    a,b,c,d = st.columns(4)
+    a.metric("Hz",f"{active['Hz']:.9f}")
+    b.metric("cm",f"{active['cm']:.6f}")
+    c.metric("k",f"{active['k']:.9f}")
+    d.metric("EM GHz",f"{active['EM_GHz']:.9f}")
+
+    st.write(
+        f"Archived mirror pair: **{active['address']} ↔ {active['mirror_address']}**. "
+        f"k′/k = **{active['mirror_k']/active['k']:.6g}**."
+    )
+
+with tab_status:
+    st.header("Status + scalar tables")
+
+    refs = pd.DataFrame([
+        {"name":"Radon B","membership":"outside O1","role":"pre-O1 reflective / black-mirror cathodic reference",**scalar_tuple("Radon B")},
+        {"name":"Tomion A","membership":"outside periodic/RH spiral","role":"still / invariant COMMON reference",**scalar_tuple("Tomion A")},
+        {"name":"Radon A","membership":"INSIDE O9 as C2","role":"return cathodic / Mass-Hara closure",**scalar_tuple("Radon A")},
+        {"name":"Plutonium","membership":"INSIDE O9 as final anode","role":"fullness-of-expression / terminal differentiated anode",**scalar_tuple("Plutonium")},
+    ])
+    st.subheader("Reference and O9 roles")
+    st.dataframe(refs,use_container_width=True,hide_index=True)
+
+    st.subheader("32-address scalar chassis")
+    st.dataframe(DF32,use_container_width=True,hide_index=True)
+
+    st.subheader("Status discipline")
     st.markdown("""
-**LOCKED internal operator**
-- Alpha affine address: `A(r,s)=C+3r+s`
-- Mirror: `J(C+D)=C-D`
-- TURN quantum: `q=22.5°`, `q^16=I`
-- 32 chassis: 16 compression/Tone-facing AND 16 rarefaction/Mass-harmonic-facing
-- O9: Lutecium → Plutonium anodes; Xenon → Radon A cathodes
-- Tomion A: still reference outside periodic spiral
-- Radon B: pre-O1 reference outside O1
-- Radon A: inside O9 as C2 closure
+**LOCKED / established in the current internal build**
+- Alpha affine operator: `A(r,s)=C+3r+s`
+- local directional square: `[-2,-3,-1; +1,0,+2; +4,+3,+5]`
+- `q=22.5°`, with 16 local orientation addresses
+- 32 girdle = 16 ABOVE AND 16 BELOW
+- principal O1–O9 2A2C packet skeleton
+- O4↔O5 Heart/girdle seam
+- Plutonium = final O9 anode
+- Radon A = INSIDE O9 as C2 return closure
+- Tomion A = still reference outside periodic/RH spiral
+- Radon B = pre-O1 reference outside O1
 
-**Explicit app implementation**
+**DECLARED LIVING IMPLEMENTATION**
 - `slot = wrap16(origin + (3r+s) + θ/22.5°)`
-- reciprocal face keeps the same local slot and changes LOOK face
-
-This implementation is a **living traversal rule** built from the locked affine and TURN operators.
-It is not being mislabeled as an already-retrieved archival theorem for the unique 16-address permutation.
+- This lets Alpha visibly traverse the chassis while remaining labeled as an implementation rule rather than an archival theorem.
 
 **OPEN**
-- full 121-element scalar completion
-- exact archive-derived inner three reciprocal pairs across every half-octave
-- unique source-derived formula connecting every 16-slot local address to one 18-half-octave macro packet
+- literal 121-element completion
+- missing inner three reciprocal pairs across every half-octave
+- a unique archive-derived formula assigning every affine local address directly to every macro half-octave packet
 """)
 
 st.divider()
-st.caption(
-    "Internal LOVE Table / Ω research interface. Whole first, operator second, number third, correspondence last."
-)
+st.caption("Whole first, operator second, number third, correspondence last.")
 
