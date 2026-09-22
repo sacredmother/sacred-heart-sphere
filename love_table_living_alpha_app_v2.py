@@ -214,148 +214,190 @@ reciprocal = row_for(other_face, mirror_slot(slot))
 # TABBED LIVING INTERFACE
 # -----------------------------
 tab_chassis, tab_alpha, tab_girdle, tab_status = st.tabs([
-    "LOVE Table Chassis",
+    "Angular LOVE Table",
     "Alpha Affine Square",
     "32 Girdle Detail",
     "Status + Scalar Tables",
 ])
 
 with tab_chassis:
-    st.header("Living LOVE Table chassis")
+    st.header("Angular LOVE Table chassis")
     st.caption(
-        "This is an unwrapped functional chassis, not a newly invented radial ruler. "
-        "Horizontal position is the established O1→O9 packet order; vertical lanes are role lanes. "
-        "The O4/O5 girdle seam is shown explicitly, while Alpha's current local address is carried beside it."
+        "Known anode/cathode structure plotted against the locked 22.5° orientation ruler. "
+        "The angular ruler is an address/orientation coordinate; it is not being confused with elemental weighting."
     )
 
-    # Current live Alpha state
-    m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("A(r,s)", f"{A:.0f}")
-    m2.metric("D = 3r+s", f"{affine_steps:+d}")
-    m3.metric("q steps", f"{q_steps}")
-    m4.metric("Local slot", f"{slot}/16")
-    m5.metric("LOOK face", active_face)
+    # Live controls specific to the angular view.
+    f1,f2,f3 = st.columns(3)
+    with f1:
+        role_filter = st.radio("Show", ["Both", "Anodes", "Cathodes"], horizontal=True)
+    with f2:
+        face_filter = st.radio("Face", ["Both faces", "ABOVE", "BELOW"], horizontal=True)
+    with f3:
+        label_mode = st.radio("Labels", ["Role + element", "Element only", "Role only"], horizontal=True)
 
-    # Build the exact principal 2A2C packet lanes.
-    chassis_rows = []
-    for i,(octv,a1,a2,c1,c2,note,ratio) in enumerate(PACKETS, start=1):
-        for lane,role,name in [
-            (3,"A2",a2),(2,"A1",a1),(-2,"C1",c1),(-3,"C2",c2)
-        ]:
-            tup = scalar_tuple(name)
-            chassis_rows.append({
-                "octave":octv,"x":i,"lane":lane,"role":role,"name":name,
-                "Hz":tup["Hz"],"cm":tup["cm"],"k":tup["k"],"EM_GHz":tup["EM_GHz"],
-                "braid":note
-            })
-    cdf = pd.DataFrame(chassis_rows)
+    # Locked 16-address angular ruler.
+    angles = [ANGLE_QUANTUM * i for i in range(1,17)]
 
-    figc = go.Figure()
+    # Build known principal 2A2C stations.
+    # IMPORTANT STATUS:
+    # The principal A1/A2/C1/C2 memberships are locked.
+    # The 16 angular addresses are locked.
+    # The bridge below places packet LOOKs on the 16-angle wheel as a declared visualization layer;
+    # it does NOT claim a unique archive-derived 121-element angle permutation.
+    principal = []
+    role_radius = {"C2":1.15, "C1":1.42, "A1":1.82, "A2":2.10}
+    role_kind = {"A1":"Anode","A2":"Anode","C1":"Cathode","C2":"Cathode"}
 
-    # Four principal lanes.
+    # Use the 18 reciprocal half-octave LOOKs as the traversal sequence.
+    # A LOOK reads A1->A2 and C1->C2; B LOOK reverses the same packet membership.
+    # Map sequential LOOK index to the locked 16-address ruler with wrap, leaving the
+    # 17th/18th Great-Radial completion visibly marked at the 22.5/45 degree return.
+    look_index = 0
+    for oi,(octv,a1,a2,c1,c2,note,ratio) in enumerate(PACKETS, start=1):
+        for look,face in [("A","ABOVE"),("B","BELOW")]:
+            look_index += 1
+            slot_i = ((look_index - 1) % 16) + 1
+            angle = slot_i * ANGLE_QUANTUM
+            ordered = [("A1",a1),("A2",a2),("C1",c1),("C2",c2)] if look=="A" else [
+                ("A2",a2),("A1",a1),("C2",c2),("C1",c1)
+            ]
+            for role,name in ordered:
+                tup=scalar_tuple(name)
+                principal.append({
+                    "look_index":look_index,"slot":slot_i,"theta":angle,
+                    "octave":octv,"look":look,"face":face,"role":role,
+                    "kind":role_kind[role],"name":name,"radius":role_radius[role],
+                    "Hz":tup["Hz"],"cm":tup["cm"],"k":tup["k"],"EM_GHz":tup["EM_GHz"],
+                    "braid":note,
+                    "status":"LOCKED membership / DECLARED angular bridge"
+                })
+    pdf=pd.DataFrame(principal)
+
+    # Filtering.
+    shown=pdf.copy()
+    if role_filter=="Anodes":
+        shown=shown[shown["kind"]=="Anode"]
+    elif role_filter=="Cathodes":
+        shown=shown[shown["kind"]=="Cathode"]
+    if face_filter!="Both faces":
+        shown=shown[shown["face"]==face_filter]
+
+    def point_label(row):
+        if label_mode=="Role + element":
+            return f"{row['role']} · {row['name']}"
+        if label_mode=="Element only":
+            return row["name"]
+        return row["role"]
+
+    shown=shown.copy()
+    shown["label"]=shown.apply(point_label,axis=1)
+
+    figc=go.Figure()
+
+    # 16 address spokes and degree labels.
+    for ang in angles:
+        figc.add_trace(go.Scatterpolar(
+            r=[0.35,2.35],theta=[ang,ang],mode="lines",
+            line=dict(width=1),hoverinfo="skip",showlegend=False
+        ))
+        figc.add_annotation if False else None
+
+    # Center.
+    figc.add_trace(go.Scatterpolar(
+        r=[0],theta=[0],mode="markers+text",
+        text=["CENTER / COMMON"],textposition="top center",
+        marker=dict(size=18,symbol="circle"),name="Invariant Center"
+    ))
+
+    # Plot roles independently so anode/cathode structure is immediately visible.
     for role in ["A2","A1","C1","C2"]:
-        d = cdf[cdf["role"]==role]
-        figc.add_trace(go.Scatter(
-            x=d["x"], y=d["lane"],
-            mode="lines+markers+text",
-            text=d["name"],
-            textposition="top center" if role in ["A2","A1"] else "bottom center",
-            customdata=np.stack([d["octave"],d["name"],d["Hz"],d["cm"],d["k"],d["EM_GHz"]],axis=-1),
+        d=shown[shown["role"]==role]
+        if len(d)==0:
+            continue
+        figc.add_trace(go.Scatterpolar(
+            r=d["radius"],theta=d["theta"],mode="markers+text",
+            text=d["label"],textposition="top center",
+            customdata=np.stack([
+                d["octave"],d["look"],d["face"],d["role"],d["name"],
+                d["slot"],d["Hz"],d["cm"],d["k"],d["EM_GHz"],d["status"]
+            ],axis=-1),
             hovertemplate=(
-                "%{customdata[0]} — "+role+"<br>"
-                "%{customdata[1]}<br>"
-                "Hz=%{customdata[2]:.9f}<br>"
-                "cm=%{customdata[3]:.6f}<br>"
-                "k=%{customdata[4]:.9f}<br>"
-                "EM=%{customdata[5]:.9f} GHz<extra></extra>"
+                "%{customdata[0]} · LOOK %{customdata[1]} · %{customdata[2]}<br>"
+                "%{customdata[3]} — %{customdata[4]}<br>"
+                "angular slot=%{customdata[5]}/16 · θ=%{theta}°<br>"
+                "Hz=%{customdata[6]:.9f}<br>cm=%{customdata[7]:.6f}<br>"
+                "k=%{customdata[8]:.9f}<br>EM=%{customdata[9]:.9f} GHz<br>"
+                "%{customdata[10]}<extra></extra>"
             ),
-            name=role,
-            marker=dict(size=11),
+            name=role,marker=dict(size=12)
         ))
 
-    # Invariant Center/COMMON lane.
-    figc.add_hline(y=0, line_width=3)
-    figc.add_annotation(x=5, y=0, text="Invariant Center / COMMON — does not move", showarrow=False, yshift=10)
+    # Live Alpha ray.
+    active_angle = slot * ANGLE_QUANTUM
+    figc.add_trace(go.Scatterpolar(
+        r=[0,2.55],theta=[active_angle,active_angle],mode="lines+markers",
+        line=dict(width=5),marker=dict(size=8),name="LIVE ALPHA LOOK"
+    ))
+    figc.add_trace(go.Scatterpolar(
+        r=[2.58],theta=[active_angle],mode="markers+text",
+        text=[f"ALPHA · slot {slot}/16 · {active_angle:g}°"],
+        textposition="top center",marker=dict(size=20,symbol="diamond"),
+        name="Active angular address"
+    ))
 
-    # O4/O5 girdle seam: explicit chassis hinge, not radial inference.
-    figc.add_vrect(x0=3.5, x1=5.5, opacity=0.10, line_width=1)
-    figc.add_annotation(
-        x=4.5, y=4.25,
-        text="O4 ↔ O5 HEART / 32-address GIRDLE SEAM<br>16 ABOVE AND 16 BELOW",
-        showarrow=False
-    )
-
-    # Great Radial / O9 completion.
-    figc.add_vrect(x0=8.65, x1=9.35, opacity=0.08, line_width=1)
-    figc.add_annotation(
-        x=9, y=4.25,
-        text="O9 completion<br>Plutonium A2 / Radon A C2",
-        showarrow=False
-    )
-
-    # Outside references: placed in a dedicated reference lane, not as periodic x-addresses.
-    figc.add_annotation(
-        x=0.55, y=-4.35,
-        text="Radon B — outside O1<br>pre-O1 reflective reference",
-        showarrow=True, ax=-15, ay=35
-    )
-    figc.add_annotation(
-        x=9.45, y=4.85,
-        text="Tomion A — outside periodic/RH spiral<br>still COMMON reference",
-        showarrow=True, ax=15, ay=-30
-    )
-
-    # Girdle address badge: the live Alpha local address is shown at the seam.
-    figc.add_annotation(
-        x=4.5, y=0,
-        text=(
-            f"<b>LIVE ALPHA</b><br>{active['address']}<br>"
-            f"{active_face} · slot {slot}/16 · θ-address {active['theta_deg']:g}°"
-        ),
-        showarrow=True, arrowhead=2, ax=0, ay=-80
-    )
-
-    # Principal reciprocal packet links.
-    for i in range(1,10):
-        a1 = cdf[(cdf.x==i)&(cdf.role=="A1")].iloc[0]
-        a2 = cdf[(cdf.x==i)&(cdf.role=="A2")].iloc[0]
-        c1 = cdf[(cdf.x==i)&(cdf.role=="C1")].iloc[0]
-        c2 = cdf[(cdf.x==i)&(cdf.role=="C2")].iloc[0]
-        figc.add_shape(type="line",x0=i,y0=2,x1=i,y1=3,line=dict(width=1))
-        figc.add_shape(type="line",x0=i,y0=-2,x1=i,y1=-3,line=dict(width=1))
-
+    # Explicit O4/O5 girdle marker band.
+    # This does not move elements; it marks the known Heart/girdle relation in the legend/text.
     figc.update_layout(
-        height=760,
-        title="Full principal 2A2C chassis with O4/O5 girdle seam",
-        xaxis=dict(
-            title="Established half-octave packet order",
-            tickmode="array", tickvals=list(range(1,10)),
-            ticktext=[f"O{i}" for i in range(1,10)],
-            range=[0.25,9.75]
+        height=820,
+        title="Known 2A2C stations on the 16-address / 22.5° angular chassis",
+        polar=dict(
+            angularaxis=dict(
+                direction="clockwise",rotation=90,dtick=22.5,
+                tickmode="array",tickvals=angles,
+                ticktext=[f"{a:g}°" for a in angles]
+            ),
+            radialaxis=dict(
+                range=[0,2.8],
+                tickmode="array",
+                tickvals=[1.15,1.42,1.82,2.10],
+                ticktext=["C2","C1","A1","A2"],
+                title="functional role rings"
+            )
         ),
-        yaxis=dict(
-            title="Functional lane — schematic, not a scalar radius",
-            tickmode="array",
-            tickvals=[-3,-2,0,2,3],
-            ticktext=["C2","C1","CENTER","A1","A2"],
-            range=[-5.2,5.3]
-        ),
-        hovermode="closest",
         legend=dict(orientation="h")
     )
-    st.plotly_chart(figc, use_container_width=True)
+    st.plotly_chart(figc,use_container_width=True)
+
+    # Live state and exact known girdle address.
+    m1,m2,m3,m4,m5 = st.columns(5)
+    m1.metric("Alpha slot",f"{slot}/16")
+    m2.metric("Alpha angle",f"{active_angle:g}°")
+    m3.metric("A(r,s)",f"{A:g}")
+    m4.metric("D=3r+s",f"{affine_steps:+d}")
+    m5.metric("LOOK face",active_face)
 
     st.markdown(
-        f"**Current Alpha LOOK:** `{active['address']}` on the **{active_face}** face, "
-        f"local slot **{slot}/16**. Its reciprocal-face address at the same local slot is "
-        f"**{reciprocal['address']}**. The girdle is now shown *inside* the larger O1–O9 / 2A2C chassis rather than as the whole chassis."
+        f"**32-girdle address at this same angular slot:** **{active['address']}** ({active_face}) "
+        f"AND reciprocal-face address **{reciprocal['address']}**. "
+        f"The girdle and principal 2A2C packet layers are being shown against the same locked 16-angle ruler."
     )
 
-    st.info(
-        "Rigor gate: the principal O1–O9 2A2C skeleton, O4/O5 girdle seam, 16+16 dual-face chassis, "
-        "and reference placements are established. The missing inner three reciprocal pairs toward the literal 121-element completion "
-        "remain OPEN and are not interpolated into this picture."
+    st.subheader("What is locked vs what is being tested")
+    st.markdown(
+        "**LOCKED:** 16 addresses per face at 22.5° increments; 32 = 16 ABOVE AND 16 BELOW; "
+        "principal O1–O9 2A2C membership; exact 32-girdle pair permutation; scalar tuples; "
+        "Plutonium final O9 anode; Radon A inside O9 C2; Tomion A still reference; Radon B pre-O1 reference.\n\n"
+        "**DECLARED VISUALIZATION BRIDGE:** the 18 reciprocal half-octave LOOKs are walked sequentially across "
+        "the 16-angle ruler and wrap at the Great-Radial completion. This lets us inspect where known A/C functions "
+        "land without pretending the missing 121-element inner pairs have already supplied a unique angle permutation.\n\n"
+        "**OPEN:** missing inner three reciprocal pairs and any unique archive-derived 121-element-to-angle permutation. "
+        "Those positions stay unfilled rather than guessed."
     )
+
+    st.subheader("Known angular placements in this build")
+    cols=["theta","slot","octave","look","face","role","kind","name","Hz","cm","k","EM_GHz","status"]
+    st.dataframe(pdf[cols],use_container_width=True,hide_index=True)
 
 with tab_alpha:
     st.header("Alpha Affine Square")
@@ -544,4 +586,5 @@ with tab_status:
 
 st.divider()
 st.caption("Whole first, operator second, number third, correspondence last.")
+
 
