@@ -236,6 +236,11 @@ wheel["radius"] = np.log2(wheel["k"])
 wheel["active"] = wheel["index"] == active["index"]
 wheel["reciprocal_active"] = wheel["index"] == reciprocal["index"]
 
+# row_for() returns a row from DF32 before the display-only radius column exists.
+# Compute the active/reciprocal display radius directly from k.
+active_radius = math.log2(float(active["k"]))
+reciprocal_radius = math.log2(float(reciprocal["k"]))
+
 fig = go.Figure()
 
 for face in ["ABOVE","BELOW"]:
@@ -262,7 +267,7 @@ for face in ["ABOVE","BELOW"]:
 
 # Active marker
 fig.add_trace(go.Scatterpolar(
-    r=[active["radius"]],
+    r=[active_radius],
     theta=[active["theta_deg"]],
     mode="markers+text",
     text=[f"ACTIVE: {active['address']}"],
@@ -271,7 +276,7 @@ fig.add_trace(go.Scatterpolar(
     name="Active Alpha address"
 ))
 fig.add_trace(go.Scatterpolar(
-    r=[reciprocal["radius"]],
+    r=[reciprocal_radius],
     theta=[reciprocal["theta_deg"]],
     mode="markers+text",
     text=[f"RECIP: {reciprocal['address']}"],
@@ -435,3 +440,4 @@ st.divider()
 st.caption(
     "Internal LOVE Table / Ω research interface. Whole first, operator second, number third, correspondence last."
 )
+
